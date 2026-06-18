@@ -1,4 +1,5 @@
 import logging
+import time
 from django.conf import settings
 from google import genai
 from google.genai import types
@@ -21,6 +22,7 @@ class GeminiClient:
     def generate_text(self, prompt, system_instruction=None, temperature=None, max_output_tokens=None):
         """
         Generate text response from Gemini API.
+        Includes automatic retry for temporary 503 Service Unavailable errors.
         """
         if not self.api_key:
             return "Error: Gemini API key is missing. Please configure it in your settings."
@@ -34,49 +36,78 @@ class GeminiClient:
             system_instruction=system_instruction
         )
 
-        try:
-            response = self.client.models.generate_content(
-                model=self.model,
-                contents=prompt,
-                config=config
-            )
-            return response.text
-        except APIError as e:
-            logger.error(f"Gemini API Error in generate_text: {e}")
-            return f"Error communicating with Gemini: {str(e)}"
-        except Exception as e:
-            logger.error(f"Unexpected error in Gemini generate_text: {e}")
-            return "An unexpected error occurred while generating the response."
+        max_retries = 3
+        delay = 1.0
+
+        for attempt in range(max_retries):
+            try:
+                response = self.client.models.generate_content(
+                    model=self.model,
+                    contents=prompt,
+                    config=config
+                )
+                return response.text
+            except APIError as e:
+                # 503 indicates service unavailable/overloaded
+                if e.code == 503 and attempt < max_retries - 1:
+                    logger.warning(f"Gemini API 503 (Unavailable) on attempt {attempt+1}. Retrying in {delay}s...")
+                    time.sleep(delay)
+                    delay *= 2
+                    continue
+                logger.error(f"Gemini API Error in generate_text: {e}")
+                return f"Error communicating with Gemini: {str(e)}"
+            except Exception as e:
+                if "503" in str(e) and attempt < max_retries - 1:
+                    logger.warning(f"Gemini API 503 Exception on attempt {attempt+1}. Retrying in {delay}s...")
+                    time.sleep(delay)
+                    delay *= 2
+                    continue
+                logger.error(f"Unexpected error in Gemini generate_text: {e}")
+                return "An unexpected error occurred while generating the response."
 
     def get_embedding(self, text):
         """
         Generate a vector embedding using text-embedding-004.
+        Includes automatic retry for temporary 503 errors.
         """
         if not self.api_key:
             logger.error("Gemini API key is missing for embeddings.")
             return None
             
-        try:
-            result = self.client.models.embed_content(
-                model=self.embedding_model,
-                contents=text,
-                config=types.EmbedContentConfig(
-                    output_dimensionality=self.dimensions
+        max_retries = 3
+        delay = 1.0
+
+        for attempt in range(max_retries):
+            try:
+                result = self.client.models.embed_content(
+                    model=self.embedding_model,
+                    contents=text,
+                    config=types.EmbedContentConfig(
+                        output_dimensionality=self.dimensions
+                    )
                 )
-            )
-            # Retrieve the embedding values
-            embedding = result.embeddings[0].values
-            return embedding
-        except APIError as e:
-            logger.error(f"Gemini API Error in get_embedding: {e}")
-            return None
-        except Exception as e:
-            logger.error(f"Unexpected error in Gemini get_embedding: {e}")
-            return None
+                return result.embeddings[0].values
+            except APIError as e:
+                if e.code == 503 and attempt < max_retries - 1:
+                    logger.warning(f"Gemini Embeddings API 503 on attempt {attempt+1}. Retrying in {delay}s...")
+                    time.sleep(delay)
+                    delay *= 2
+                    continue
+                logger.error(f"Gemini API Error in get_embedding: {e}")
+                return None
+            except Exception as e:
+                if "503" in str(e) and attempt < max_retries - 1:
+                    logger.warning(f"Gemini Embeddings 503 Exception on attempt {attempt+1}. Retrying in {delay}s...")
+                    time.sleep(delay)
+                    delay *= 2
+                    continue
+                logger.error(f"Unexpected error in Gemini get_embedding: {e}")
+                return None
 
     def generate_json(self, prompt, response_schema, system_instruction=None):
         """
         Generate structured JSON output conforming to a Pydantic schema or type description.
+        Includes automatic retry for temporary 503 errors.
         """
         if not self.api_key:
             return None
@@ -88,13 +119,30 @@ class GeminiClient:
             response_schema=response_schema
         )
 
-        try:
-            response = self.client.models.generate_content(
-                model=self.model,
-                contents=prompt,
-                config=config
-            )
-            return response.text
-        except Exception as e:
-            logger.error(f"Error generating JSON with schema: {e}")
-            return None
+        max_retries = 3
+        delay = 1.0
+
+        for attempt in range(max_retries):
+            try:
+                response = self.client.models.generate_content(
+                    model=self.model,
+                    contents=prompt,
+                    config=config
+                )
+                return response.text
+            except APIError as e:
+                if e.code == 503 and attempt < max_retries - 1:
+                    logger.warning(f"Gemini JSON API 503 on attempt {attempt+1}. Retrying in {delay}s...")
+                    time.sleep(delay)
+                    delay *= 2
+                    continue
+                logger.error(f"Error generating JSON with schema: {e}")
+                return None
+            except Exception as e:
+                if "503" in str(e) and attempt < max_retries - 1:
+                    logger.warning(f"Gemini JSON 503 Exception on attempt {attempt+1}. Retrying in {delay}s...")
+                    time.sleep(delay)
+                    delay *= 2
+                    continue
+                logger.error(f"Unexpected error in Gemini generate_json: {e}")
+                return None
