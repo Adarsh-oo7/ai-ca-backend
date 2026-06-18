@@ -33,10 +33,14 @@ fi
 echo -e "${GREEN}==> Domain targeted: $DOMAIN_NAME${NC}"
 echo -e "${GREEN}==> Email targeted: $NOTIFICATION_EMAIL${NC}"
 
-# Check if certs already exist
-if [ -d "nginx/ssl/live/$DOMAIN_NAME" ]; then
-    echo -e "${GREEN}==> SSL certificates already exist. Skipping renewal setup...${NC}"
-    exit 0
+# Check if certs already exist and are valid (not self-signed placeholders)
+if [ -f "nginx/ssl/live/$DOMAIN_NAME/fullchain.pem" ]; then
+    if openssl x509 -in "nginx/ssl/live/$DOMAIN_NAME/fullchain.pem" -text -noout | grep -q "CN=localhost"; then
+        echo -e "${GREEN}==> Self-signed placeholder certificate detected. Proceeding to obtain real Let's Encrypt certificates...${NC}"
+    else
+        echo -e "${GREEN}==> SSL certificates already exist. Skipping renewal setup...${NC}"
+        exit 0
+    fi
 fi
 
 # Create directory structures
