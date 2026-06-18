@@ -46,7 +46,7 @@ services:
     container_name: studycommander_backend_prod
     volumes:
       - django_media:/app/media
-      - django_static:/app/static
+      - django_static:/app/staticfiles
     environment:
       - DEBUG=False
       - SECRET_KEY=${SECRET_KEY}
