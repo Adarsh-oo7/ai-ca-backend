@@ -126,6 +126,14 @@ services:
         limits:
           memory: 64M
 
+  certbot:
+    image: certbot/certbot:latest
+    container_name: studycommander_certbot_prod
+    volumes:
+      - ./nginx/ssl:/etc/letsencrypt
+      - certbot_var:/var/lib/letsencrypt
+      - webroot_path:/var/www/certbot
+
 volumes:
   postgres_prod_data:
   redis_prod_data:

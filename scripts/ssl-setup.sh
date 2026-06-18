@@ -61,20 +61,19 @@ docker compose -f docker-compose.prod.yml up --build -d nginx
 
 # 3. Request actual certificates from Let's Encrypt
 echo -e "${GREEN}==> Requesting certificate from Let's Encrypt using Certbot...${NC}"
-docker compose -f docker-compose.prod.yml run --entrypoint \
-  "certbot certonly --webroot -w /var/www/certbot \
+docker compose -f docker-compose.prod.yml run --rm certbot certonly --webroot -w /var/www/certbot \
     --email $NOTIFICATION_EMAIL \
     -d $DOMAIN_NAME \
     --agree-tos \
     --no-eff-email \
     --non-interactive \
-    --force-renewal" nginx
+    --force-renewal
 
 echo -e "${GREEN}==> Certificates successfully obtained. Reloading Nginx...${NC}"
 docker compose -f docker-compose.prod.yml exec nginx nginx -s reload
 
 # 4. Create Cron Job for automatic renewal
 echo -e "${GREEN}==> Registering automatic SSL renewal cron jobs...${NC}"
-(crontab -l 2>/dev/null; echo "0 12 * * * docker compose -f $(pwd)/docker-compose.prod.yml run --entrypoint \"certbot renew --webroot -w /var/www/certbot --quiet\" nginx && docker compose -f $(pwd)/docker-compose.prod.yml exec nginx nginx -s reload") | crontab -
+(crontab -l 2>/dev/null; echo "0 12 * * * docker compose -f $(pwd)/docker-compose.prod.yml run --rm certbot renew --webroot -w /var/www/certbot --quiet && docker compose -f $(pwd)/docker-compose.prod.yml exec nginx nginx -s reload") | crontab -
 
 echo -e "${GREEN}==> SSL setup completed successfully!${NC}"
