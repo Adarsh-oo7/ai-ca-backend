@@ -35,7 +35,7 @@ echo -e "${GREEN}==> Email targeted: $NOTIFICATION_EMAIL${NC}"
 
 # Check if certs already exist and are valid (not self-signed placeholders)
 if [ -f "nginx/ssl/live/$DOMAIN_NAME/fullchain.pem" ]; then
-    if openssl x509 -in "nginx/ssl/live/$DOMAIN_NAME/fullchain.pem" -text -noout | grep -q "CN=localhost"; then
+    if openssl x509 -in "nginx/ssl/live/$DOMAIN_NAME/fullchain.pem" -text -noout | grep -q "localhost"; then
         echo -e "${GREEN}==> Self-signed placeholder certificate detected. Proceeding to obtain real Let's Encrypt certificates...${NC}"
     else
         echo -e "${GREEN}==> SSL certificates already exist. Skipping renewal setup...${NC}"
