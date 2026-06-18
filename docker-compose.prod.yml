@@ -105,22 +105,6 @@ services:
     # Run both Celery worker and beat scheduler inside the same container, limiting concurrency to 1.
     command: celery -A config worker --beat --concurrency=1 --loglevel=info
 
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile.prod
-    container_name: studycommander_frontend_prod
-    environment:
-      - NODE_ENV=production
-      - NEXT_PUBLIC_API_URL=https://${DOMAIN_NAME:-localhost}/api
-    depends_on:
-      - backend
-    restart: always
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-
   nginx:
     image: nginx:1.25-alpine
     container_name: studycommander_nginx_prod
@@ -136,7 +120,6 @@ services:
       - webroot_path:/var/www/certbot
     depends_on:
       - backend
-      - frontend
     restart: always
     deploy:
       resources:
