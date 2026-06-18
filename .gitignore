@@ -1,0 +1,37 @@
+# Environment files
+.env
+.env.local
+*.env
+!.env.example
+
+# Python / Pycache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual Environments
+venv/
+.venv/
+env/
+ENV/
+
+# Database files
+db.sqlite3
+db.sqlite3-journal
+
+# Logs
+logs/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDEs and Editors
+.idea/
+.vscode/
+*.swp
+*.swo
