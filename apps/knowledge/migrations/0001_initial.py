@@ -47,7 +47,12 @@ class Migration(migrations.Migration):
                 ("chunk_index", models.IntegerField(default=0)),
                 ("page_number", models.IntegerField(blank=True, null=True)),
                 ("token_count", models.IntegerField(default=0)),
-                ("embedding", apps.knowledge.models.VectorField(blank=True, null=True)),
+                (
+                    "embedding",
+                    apps.knowledge.models.VectorField(
+                        blank=True, dimensions=768, null=True
+                    ),
+                ),
                 ("created_at", models.DateTimeField(auto_now_add=True)),
                 (
                     "chapter",
