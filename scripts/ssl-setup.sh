@@ -62,6 +62,7 @@ openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
 # 2. Boot up Nginx container (along with other services) to serve the ACME challenge
 echo -e "${GREEN}==> Starting Docker containers...${NC}"
 docker compose -f docker-compose.prod.yml up --build -d nginx
+sleep 5
 
 # 3. Request actual certificates from Let's Encrypt
 echo -e "${GREEN}==> Requesting certificate from Let's Encrypt using Certbot...${NC}"
