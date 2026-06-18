@@ -1,0 +1,133 @@
+version: '3.8'
+
+services:
+  db:
+    image: pgvector/pgvector:16-pg16
+    container_name: studycommander_db_prod
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=${DB_NAME:-studycommander}
+      - POSTGRES_USER=${DB_USER:-postgres}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-postgres}
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    command: postgres -c shared_buffers=64MB -c work_mem=4MB -c max_connections=20
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d studycommander"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: studycommander_redis_prod
+    volumes:
+      - redis_prod_data:/data
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    command: redis-server --maxmemory 64mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: studycommander_backend_prod
+    volumes:
+      - django_media:/app/media
+      - django_static:/app/static
+    environment:
+      - DEBUG=False
+      - SECRET_KEY=${SECRET_KEY}
+      - DB_NAME=${DB_NAME:-studycommander}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+      - DB_HOST=db
+      - DB_PORT=5432
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - CORS_ALLOWED_ORIGINS=https://${DOMAIN_NAME},http://${DOMAIN_NAME}
+      - ALLOWED_HOSTS=${DOMAIN_NAME},backend,localhost,127.0.0.1
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    command: gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 2 --timeout 120
+
+  celery_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: studycommander_celery_worker_prod
+    volumes:
+      - django_media:/app/media
+    environment:
+      - DEBUG=False
+      - SECRET_KEY=${SECRET_KEY}
+      - DB_NAME=${DB_NAME:-studycommander}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+      - DB_HOST=db
+      - DB_PORT=5432
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    # Run both Celery worker and beat scheduler inside the same container, limiting concurrency to 1.
+    command: celery -A config worker --beat --concurrency=1 --loglevel=info
+
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: studycommander_nginx_prod
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/letsencrypt
+      - django_static:/usr/share/nginx/html/static:ro
+      - django_media:/usr/share/nginx/html/media:ro
+      - certbot_var:/var/lib/letsencrypt
+      - webroot_path:/var/www/certbot
+    depends_on:
+      - backend
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+
+volumes:
+  postgres_prod_data:
+  redis_prod_data:
+  django_static:
+  django_media:
+  certbot_var:
+  webroot_path:
