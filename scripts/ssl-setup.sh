@@ -65,6 +65,7 @@ docker compose -f docker-compose.prod.yml up --build -d nginx
 
 # 3. Request actual certificates from Let's Encrypt
 echo -e "${GREEN}==> Requesting certificate from Let's Encrypt using Certbot...${NC}"
+rm -rf "nginx/ssl/live/$DOMAIN_NAME"
 docker compose -f docker-compose.prod.yml run --rm certbot certonly --webroot -w /var/www/certbot \
     --email $NOTIFICATION_EMAIL \
     -d $DOMAIN_NAME \
