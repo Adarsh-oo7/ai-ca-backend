@@ -40,7 +40,7 @@ def send_study_reminders():
                     message=f"You have pending tasks scheduled for today: {task_list_str}. Stay disciplined!",
                     notification_type='study_reminder',
                     priority='medium',
-                    action_url='/schedule',
+                    action_url='/dashboard/schedule',
                     action_label='View Study Tasks'
                 )
                 sent_count += 1

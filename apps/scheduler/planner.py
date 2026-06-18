@@ -96,6 +96,7 @@ class AIStudyPlanner:
         - Add 1-2 new curriculum topics (study task type).
         - Add a mock_test or mcq_practice block (30-60 mins) for evaluation.
         - Provide exact topic names from the inputs list so we can match them.
+        - Generate a highly motivating daily mentor quote ("motivation_quote"). If the student's preferred learning language is Malayalam, write this quote in standard Malayalam script. If their preferred language is Manglish, write it in Manglish (Malayalam written in English/Latin letters). Otherwise, write it in English.
         """
 
         system_instruction = (

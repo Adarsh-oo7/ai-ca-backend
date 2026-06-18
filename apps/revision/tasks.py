@@ -39,7 +39,7 @@ def send_revision_reminders():
                 message=f"You have {len(tasks)} spaced repetition revisions due today: {task_summary}.",
                 notification_type='revision_reminder',
                 priority='high',
-                action_url='/revision',
+                action_url='/dashboard/revision',
                 action_label='Start Revision Now'
             )
             sent_count += 1

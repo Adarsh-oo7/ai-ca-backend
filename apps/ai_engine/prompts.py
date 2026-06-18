@@ -21,10 +21,40 @@ class PromptBuilder:
         # 2. Inject student memory context if user provided
         if user:
             memory_context = MemoryService.build_system_context(user)
+            
+            # Extract and inject explicit instructions based on preferred language choices
+            profile = getattr(user, 'student_profile', None)
+            lang_instruction = ""
+            if profile:
+                pref_lang = profile.preferred_language
+                if pref_lang == 'ml':
+                    lang_instruction = (
+                        "\nLANGUAGE REQUIREMENT:\n"
+                        "The student's preferred language is Malayalam. You MUST write your response entirely in the Malayalam script (Malayalam language). "
+                        "When explaining technical accounting, law, economics, or mathematical terms, write the corresponding English terms "
+                        "in brackets or in Latin script (e.g., 'ആസ്തികൾ (Assets)' or 'ഡെബിറ്റ് (Debit)') to make sure it aligns with their CA Foundation "
+                        "English study materials. Ensure all conversational parts and explanations are in natural Malayalam."
+                    )
+                elif pref_lang == 'manglish':
+                    lang_instruction = (
+                        "\nLANGUAGE REQUIREMENT:\n"
+                        "The student's preferred language is Manglish. You MUST write your response in Manglish, which is Malayalam "
+                        "written using the English/Latin alphabet script (e.g., 'Innu nammal padikkan pokunnath accounting enna topic-ne kurichaanu. "
+                        "Athil asset ennal namukkulla swathu ennanu artham. Athu debit side-il aanu kanikkuka.'). "
+                        "Blend Malayalam words with standard English technical terms (such as Ledger, Provision, Balance Sheet, etc.) "
+                        "very naturally. DO NOT write in the Malayalam script/characters. Write only in Latin/English script."
+                    )
+                else:
+                    lang_instruction = (
+                        "\nLANGUAGE REQUIREMENT:\n"
+                        "The student's preferred language is English. Respond strictly in clear, professional, and encouraging English."
+                    )
+
             full_instruction = (
                 f"{base_instruction}\n\n"
                 "STUDENT MENTOR CONTEXT (L1-L4 MEMORY ENGINE):\n"
                 f"{memory_context}\n\n"
+                f"{lang_instruction}\n\n"
                 "IMPORTANT: Review the above student details. Adapt your tone, vocabulary, language preferences, "
                 "and teaching speed accordingly. Never share the raw student context with the student."
             )

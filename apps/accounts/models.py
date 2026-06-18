@@ -41,8 +41,8 @@ class StudentProfile(models.Model):
 
     LANGUAGE_CHOICES = [
         ('en', 'English'),
-        ('hi', 'Hindi'),
-        ('hinglish', 'Hinglish'),
+        ('ml', 'Malayalam'),
+        ('manglish', 'Manglish'),
     ]
 
     STUDY_TIME_CHOICES = [
