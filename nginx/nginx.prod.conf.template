@@ -78,8 +78,8 @@ http {
             client_max_body_size 50M;
         }
 
-        # Backend application admin and api endpoints
-        location ~ ^/(api|admin) {
+        # Backend application admin, api, and accounts auth endpoints
+        location ~ ^/(api|admin|accounts) {
             limit_req zone=api_limit burst=20 nodelay;
             proxy_pass http://backend:8000;
             proxy_set_header Host $host;
