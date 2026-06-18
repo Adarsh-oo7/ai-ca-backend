@@ -36,6 +36,7 @@ whitenoise==6.8.2
 # Security
 django-otp==1.5.4
 django-two-factor-auth==1.17.0
+phonenumbers==8.13.52
 
 # Utilities
 python-decouple==3.8
