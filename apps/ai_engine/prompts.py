@@ -1,7 +1,7 @@
 import logging
 from apps.memory.services import MemoryService
 from apps.knowledge.retriever import KnowledgeRetriever
-from .models import PromptTemplate, AISettings
+from .models import PromptTemplate, AISettings, ConversationLog
 
 logger = logging.getLogger('apps.ai_engine')
 
@@ -35,22 +35,43 @@ class PromptBuilder:
     @staticmethod
     def build_chat_prompt(user, query, subject_id=None, chapter_id=None, conversation_id=None):
         """
-        Builds a conversational RAG prompt.
+        Builds a conversational RAG prompt with active memory of recent chat history.
         """
         retriever = KnowledgeRetriever()
         rag_context, citations = retriever.build_rag_context(
             query, subject_id=subject_id, chapter_id=chapter_id, conversation_id=conversation_id
         )
 
-        prompt = (
-            f"{rag_context}\n\n"
-            f"STUDENT QUERY: {query}\n\n"
+        # Retrieve last 10 messages in the current session
+        chat_history_str = ""
+        if conversation_id:
+            history_logs = ConversationLog.objects.filter(
+                user=user,
+                session_id=conversation_id
+            ).order_by('created_at')[:10]
+            
+            chat_history = []
+            for log in history_logs:
+                chat_history.append(f"Student: {log.user_message}")
+                chat_history.append(f"Mentor: {log.ai_response}")
+            chat_history_str = "\n".join(chat_history)
+
+        prompt_parts = []
+        if chat_history_str:
+            prompt_parts.append(f"CONVERSATION HISTORY:\n{chat_history_str}\n")
+            
+        prompt_parts.append(f"ICAI REFERENCE CONTEXT:\n{rag_context}\n")
+        prompt_parts.append(f"STUDENT LATEST QUERY: {query}\n")
+        prompt_parts.append(
             "ANSWER INSTRUCTIONS:\n"
-            "- Answer the student's query using the ICAI Study Material context provided above.\n"
+            "- Answer the student's latest query, referencing the history if relevant.\n"
+            "- Use the ICAI Study Material context provided above to ground your response.\n"
             "- If the query cannot be answered by the context, use your general knowledge of the CA Foundation syllabus, but state so.\n"
             "- Be highly encouraging and clear. Explain complex items step-by-step.\n"
             "- Cite your sources using [Source X] notation where relevant."
         )
+
+        prompt = "\n".join(prompt_parts)
         return prompt, citations
 
     @staticmethod
