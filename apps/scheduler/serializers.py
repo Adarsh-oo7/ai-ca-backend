@@ -14,9 +14,9 @@ class StudyTaskSerializer(serializers.ModelSerializer):
             'subject', 'subject_name', 'chapter', 'chapter_name', 'topic', 'topic_name',
             'scheduled_date', 'scheduled_time', 'duration_minutes', 'order',
             'status', 'priority', 'is_completed', 'completed_at', 'actual_duration',
-            'is_ai_generated', 'ai_reason', 'created_at', 'updated_at'
+            'is_ai_generated', 'ai_reason', 'google_event_id', 'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'is_ai_generated', 'ai_reason', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'is_ai_generated', 'ai_reason', 'google_event_id', 'created_at', 'updated_at']
 
 class DailyScheduleSerializer(serializers.ModelSerializer):
     tasks = StudyTaskSerializer(many=True, read_only=True)

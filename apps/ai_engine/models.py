@@ -90,11 +90,45 @@ class AISettings(models.Model):
         return obj
 
 
+class ChatSession(models.Model):
+    """
+    Persistent chat session record. Every conversation (chat, teaching, revision)
+    is grouped under a ChatSession for long-term memory and sidebar display.
+    """
+    SESSION_TYPES = [
+        ('chat', 'Chat'),
+        ('teaching', 'Teaching Session'),
+        ('revision', 'Revision'),
+    ]
+
+    id = models.CharField(max_length=100, primary_key=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='chat_sessions')
+    title = models.CharField(max_length=300, default='New Chat')
+    session_type = models.CharField(max_length=20, choices=SESSION_TYPES, default='chat')
+    is_active = models.BooleanField(default=True)
+    message_count = models.IntegerField(default=0)
+    last_summary = models.TextField(blank=True, help_text='AI-compressed summary of this session for long-term memory')
+    subject = models.ForeignKey('curriculum.Subject', on_delete=models.SET_NULL, null=True, blank=True)
+    chapter = models.ForeignKey('curriculum.Chapter', on_delete=models.SET_NULL, null=True, blank=True)
+    topic = models.ForeignKey('curriculum.Topic', on_delete=models.SET_NULL, null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-updated_at']
+        verbose_name = 'Chat Session'
+
+    def __str__(self):
+        return f"[{self.session_type}] {self.title}"
+
+
 class ConversationLog(models.Model):
     """Store AI conversation history for context."""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='conversations')
     session_id = models.CharField(max_length=100, db_index=True)
+    chat_session = models.ForeignKey(ChatSession, on_delete=models.SET_NULL, null=True, blank=True, related_name='messages')
 
     INTERACTION_TYPES = [
         ('chat', 'Chat'),

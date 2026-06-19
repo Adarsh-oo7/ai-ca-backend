@@ -65,7 +65,8 @@ class PromptBuilder:
     @staticmethod
     def build_chat_prompt(user, query, subject_id=None, chapter_id=None, conversation_id=None):
         """
-        Builds a conversational RAG prompt with active memory of recent chat history.
+        Builds a conversational RAG prompt with active memory of recent chat history
+        AND cross-session long-term memory from previous sessions.
         """
         retriever = KnowledgeRetriever()
         rag_context, citations = retriever.build_rag_context(
@@ -87,9 +88,38 @@ class PromptBuilder:
                 chat_history.append(f"Mentor: {log.ai_response}")
             chat_history_str = "\n".join(chat_history)
 
+        # Cross-session long-term memory: load summaries of recent past sessions
+        long_term_memory = ""
+        try:
+            from .models import ChatSession
+            past_sessions = ChatSession.objects.filter(
+                user=user,
+                last_summary__gt=''  # Only sessions with summaries
+            ).exclude(
+                id=conversation_id  # Exclude current session
+            ).order_by('-updated_at')[:3]
+
+            if past_sessions.exists():
+                memory_parts = []
+                for s in past_sessions:
+                    date_str = s.updated_at.strftime('%B %d, %Y') if s.updated_at else 'Unknown date'
+                    memory_parts.append(
+                        f"[Session: {s.title} ({s.get_session_type_display()}) - {date_str}]\n{s.last_summary}"
+                    )
+                long_term_memory = "\n\n".join(memory_parts)
+        except Exception as e:
+            logger.warning(f"Failed to load cross-session memory: {e}")
+
         prompt_parts = []
+
+        if long_term_memory:
+            prompt_parts.append(
+                f"LONG-TERM MEMORY (Previous Sessions):\n{long_term_memory}\n"
+                "Note: Use this memory to maintain continuity. Reference past discussions naturally if relevant.\n"
+            )
+
         if chat_history_str:
-            prompt_parts.append(f"CONVERSATION HISTORY:\n{chat_history_str}\n")
+            prompt_parts.append(f"CURRENT SESSION HISTORY:\n{chat_history_str}\n")
             
         prompt_parts.append(f"ICAI REFERENCE CONTEXT:\n{rag_context}\n")
         prompt_parts.append(f"STUDENT LATEST QUERY: {query}\n")

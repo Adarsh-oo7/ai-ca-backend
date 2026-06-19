@@ -120,6 +120,71 @@ class DailyScheduleViewSet(viewsets.ModelViewSet):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response({'error': 'Failed to generate plan'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    @action(detail=False, methods=['post'])
+    def auto_schedule(self, request):
+        """Generate AI schedules for a date range (max 7 days)."""
+        from .tasks import smart_reschedule_for_user
+
+        start_date = request.data.get('start_date', None)
+        end_date = request.data.get('end_date', None)
+
+        if not start_date or not end_date:
+            return Response({'error': 'start_date and end_date are required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Validate date range is not too long
+        from datetime import datetime as dt
+        start = dt.strptime(start_date, '%Y-%m-%d').date()
+        end = dt.strptime(end_date, '%Y-%m-%d').date()
+        if (end - start).days > 7:
+            return Response({'error': 'Maximum 7 days allowed'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Fire Celery task asynchronously
+        smart_reschedule_for_user.delay(str(request.user.id), start_date, end_date)
+
+        return Response({
+            'status': 'scheduling',
+            'message': f'AI is generating schedules from {start_date} to {end_date}. Refresh in a moment.'
+        }, status=status.HTTP_202_ACCEPTED)
+
+    @action(detail=False, methods=['post'])
+    def reschedule_missed(self, request):
+        """Manually trigger rescheduling of yesterday's missed tasks to today."""
+        yesterday = (timezone.now().date() - timezone.timedelta(days=1))
+        today = timezone.now().date()
+
+        missed_tasks = StudyTask.objects.filter(
+            user=request.user,
+            scheduled_date=yesterday,
+            is_completed=False,
+            status__in=['pending', 'in_progress']
+        )
+
+        rescheduled_count = 0
+        for task in missed_tasks:
+            StudyTask.objects.create(
+                user=request.user,
+                title=f"[Rescheduled] {task.title}",
+                description=f"Rescheduled from {yesterday}. {task.description}",
+                task_type=task.task_type,
+                subject=task.subject,
+                chapter=task.chapter,
+                topic=task.topic,
+                scheduled_date=today,
+                duration_minutes=task.duration_minutes,
+                priority=max(1, task.priority - 1),
+                is_ai_generated=True,
+                ai_reason=f"Manually rescheduled from {yesterday}"
+            )
+            task.status = 'rescheduled'
+            task.save(update_fields=['status'])
+            rescheduled_count += 1
+
+        return Response({
+            'rescheduled': rescheduled_count,
+            'message': f'{rescheduled_count} tasks rescheduled to today'
+        }, status=status.HTTP_200_OK)
+
+
 
 class WeeklyScheduleViewSet(viewsets.ModelViewSet):
     serializer_class = WeeklyScheduleSerializer
@@ -191,3 +256,86 @@ class AttendanceViewSet(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(attendance)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class GoogleCalendarViewSet(viewsets.ViewSet):
+    """Google Calendar OAuth2 integration endpoints."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    @action(detail=False, methods=['get'])
+    def status(self, request):
+        """Check if Google Calendar is connected for the current user."""
+        from .models import GoogleCalendarToken
+        try:
+            token = GoogleCalendarToken.objects.get(user=request.user, is_active=True)
+            return Response({
+                'connected': True,
+                'calendar_id': token.calendar_id,
+                'connected_since': token.created_at
+            })
+        except GoogleCalendarToken.DoesNotExist:
+            return Response({'connected': False})
+
+    @action(detail=False, methods=['get'])
+    def connect(self, request):
+        """Get the OAuth2 authorization URL to connect Google Calendar."""
+        try:
+            from .calendar_integration import GoogleCalendarService
+            auth_url, state = GoogleCalendarService.get_auth_url(request.user)
+            return Response({
+                'auth_url': auth_url,
+                'state': state
+            })
+        except ValueError as e:
+            return Response({
+                'error': str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['post'])
+    def callback(self, request):
+        """Handle OAuth2 callback with authorization code."""
+        auth_code = request.data.get('code', '')
+        if not auth_code:
+            return Response({'error': 'Authorization code is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            from .calendar_integration import GoogleCalendarService
+            token_obj = GoogleCalendarService.handle_callback(request.user, auth_code)
+            return Response({
+                'connected': True,
+                'calendar_id': token_obj.calendar_id,
+                'message': 'Google Calendar connected successfully'
+            })
+        except Exception as e:
+            return Response({
+                'error': f'Failed to connect: {str(e)}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['post'])
+    def disconnect(self, request):
+        """Disconnect Google Calendar access."""
+        from .calendar_integration import GoogleCalendarService
+        result = GoogleCalendarService.disconnect(request.user)
+        if result:
+            return Response({'status': 'disconnected'})
+        return Response({'error': 'Google Calendar is not connected'}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['post'])
+    def sync(self, request):
+        """Sync all study tasks for a given date to Google Calendar."""
+        date_str = request.data.get('date', None)
+        if not date_str:
+            target_date = timezone.now().date()
+        else:
+            from datetime import datetime as dt
+            target_date = dt.strptime(date_str, '%Y-%m-%d').date()
+
+        try:
+            from .calendar_integration import GoogleCalendarService
+            result = GoogleCalendarService.sync_all_tasks(request.user, target_date)
+            return Response(result)
+        except ValueError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({'error': f'Sync failed: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+

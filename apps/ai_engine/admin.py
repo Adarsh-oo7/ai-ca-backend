@@ -1,5 +1,12 @@
 from django.contrib import admin
-from .models import PromptTemplate, AISettings, ConversationLog, SuccessPrediction
+from .models import PromptTemplate, AISettings, ConversationLog, SuccessPrediction, ChatSession
+
+@admin.register(ChatSession)
+class ChatSessionAdmin(admin.ModelAdmin):
+    list_display = ['id', 'user', 'title', 'session_type', 'message_count', 'is_active', 'created_at', 'updated_at']
+    list_filter = ['session_type', 'is_active']
+    search_fields = ['title', 'id', 'last_summary']
+
 
 @admin.register(PromptTemplate)
 class PromptTemplateAdmin(admin.ModelAdmin):

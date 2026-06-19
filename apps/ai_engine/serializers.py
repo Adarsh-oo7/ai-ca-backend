@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import PromptTemplate, AISettings, ConversationLog, SuccessPrediction
+from .models import PromptTemplate, AISettings, ConversationLog, SuccessPrediction, ChatSession
 
 class PromptTemplateSerializer(serializers.ModelSerializer):
     category_display = serializers.CharField(source='get_category_display', read_only=True)
@@ -16,6 +16,21 @@ class AISettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model = AISettings
         fields = '__all__'
+
+class ChatSessionSerializer(serializers.ModelSerializer):
+    """Full chat session detail with messages."""
+    session_type_display = serializers.CharField(source='get_session_type_display', read_only=True)
+    subject_name = serializers.CharField(source='subject.name', read_only=True, default=None)
+    topic_name = serializers.CharField(source='topic.name', read_only=True, default=None)
+
+    class Meta:
+        model = ChatSession
+        fields = [
+            'id', 'title', 'session_type', 'session_type_display',
+            'is_active', 'message_count', 'subject', 'subject_name',
+            'topic', 'topic_name', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
 
 class ConversationLogSerializer(serializers.ModelSerializer):
     subject_name = serializers.CharField(source='subject.name', read_only=True)
@@ -38,3 +53,4 @@ class SuccessPredictionSerializer(serializers.ModelSerializer):
     class Meta:
         model = SuccessPrediction
         fields = '__all__'
+

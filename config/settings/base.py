@@ -285,6 +285,11 @@ GEMINI_EMBEDDING_DIMENSIONS = config('GEMINI_EMBEDDING_DIMENSIONS', default=768,
 GEMINI_MAX_TOKENS = config('GEMINI_MAX_TOKENS', default=8192, cast=int)
 GEMINI_TEMPERATURE = config('GEMINI_TEMPERATURE', default=0.7, cast=float)
 
+# Google Calendar Integration
+GOOGLE_CALENDAR_CLIENT_ID = config('GOOGLE_CALENDAR_CLIENT_ID', default='')
+GOOGLE_CALENDAR_CLIENT_SECRET = config('GOOGLE_CALENDAR_CLIENT_SECRET', default='')
+GOOGLE_CALENDAR_REDIRECT_URI = config('GOOGLE_CALENDAR_REDIRECT_URI', default='http://localhost:3000/dashboard/schedule/callback')
+
 # Memory Engine
 MEMORY_TOKEN_LIMIT = config('MEMORY_TOKEN_LIMIT', default=3000, cast=int)
 MEMORY_MAX_TOKEN_LIMIT = config('MEMORY_MAX_TOKEN_LIMIT', default=5000, cast=int)

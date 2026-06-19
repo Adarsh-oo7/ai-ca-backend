@@ -38,6 +38,21 @@ app.conf.beat_schedule = {
         'task': 'apps.accounts.tasks.cleanup_old_logs',
         'schedule': crontab(hour=2, minute=0, day_of_month='1'),
     },
+    # Auto-generate tomorrow's study schedule at 9 PM IST
+    'auto-generate-tomorrow-schedule': {
+        'task': 'apps.scheduler.tasks.auto_generate_tomorrow_schedule',
+        'schedule': crontab(hour=21, minute=0),
+    },
+    # Reschedule missed tasks at 6 AM IST
+    'reschedule-missed-tasks': {
+        'task': 'apps.scheduler.tasks.reschedule_missed_tasks',
+        'schedule': crontab(hour=6, minute=30),
+    },
+    # Weekly plan review Sunday 10 PM IST
+    'weekly-plan-review': {
+        'task': 'apps.scheduler.tasks.weekly_plan_review',
+        'schedule': crontab(hour=22, minute=0, day_of_week='sunday'),
+    },
 }
 
 

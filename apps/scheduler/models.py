@@ -62,6 +62,9 @@ class StudyTask(models.Model):
     is_ai_generated = models.BooleanField(default=False)
     ai_reason = models.TextField(blank=True, help_text='Why AI scheduled this task')
 
+    # Google Calendar sync
+    google_event_id = models.CharField(max_length=200, blank=True, help_text='Google Calendar event ID for sync')
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -191,3 +194,22 @@ class Attendance(models.Model):
     def __str__(self):
         status = "Present" if self.is_present else "Absent"
         return f"{self.date}: {status} ({self.hours_studied}h)"
+
+
+class GoogleCalendarToken(models.Model):
+    """Store Google Calendar OAuth2 tokens per user."""
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='google_calendar_token')
+    access_token = models.TextField()
+    refresh_token = models.TextField(blank=True)
+    token_expiry = models.DateTimeField()
+    calendar_id = models.CharField(max_length=200, default='primary')
+    is_active = models.BooleanField(default=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Google Calendar Token'
+
+    def __str__(self):
+        return f"Calendar token for {self.user.email} ({'active' if self.is_active else 'inactive'})"
