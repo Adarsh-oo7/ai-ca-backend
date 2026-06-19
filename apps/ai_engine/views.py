@@ -133,4 +133,13 @@ class SuccessPredictionViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return SuccessPrediction.objects.filter(user=self.request.user)
+        user = self.request.user
+        qs = SuccessPrediction.objects.filter(user=user)
+        if not qs.exists():
+            from apps.analytics.calculator import AnalyticsCalculator
+            try:
+                AnalyticsCalculator.recalculate_student_metrics(user)
+                qs = SuccessPrediction.objects.filter(user=user)
+            except Exception as e:
+                logger.error(f"Error calculating default success prediction for {user.email}: {e}")
+        return qs
