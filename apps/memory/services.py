@@ -200,13 +200,15 @@ class MemoryService:
             except Topic.DoesNotExist:
                 pass
 
-        # Layer 4: Latest Summary
-        latest_summary = MemorySummary.objects.filter(user=user).order_name = '-period_start'
-        latest_summary = MemorySummary.objects.filter(user=user).order_by('-period_start').first()
-        if latest_summary:
-            context.append("\n=== LATEST PROGRESS SUMMARY ===")
-            context.append(latest_summary.summary_text)
-            if latest_summary.key_insights:
-                context.append(f"Key Insights: {', '.join(latest_summary.key_insights)}")
+        # Layer 4: Memory Summaries (Keeping older memories in context)
+        summaries = list(MemorySummary.objects.filter(user=user).order_by('-period_start')[:4])
+        summaries.reverse()
+        if summaries:
+            context.append("\n=== HISTORICAL PROGRESS & MEMORY SUMMARIES ===")
+            for s in summaries:
+                context.append(f"[{s.period.capitalize()} Summary: {s.period_start} to {s.period_end}]")
+                context.append(s.summary_text)
+                if s.key_insights:
+                    context.append(f"Key Insights: {', '.join(s.key_insights)}")
 
         return "\n".join(context)

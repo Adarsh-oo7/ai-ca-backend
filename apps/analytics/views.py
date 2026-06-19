@@ -6,10 +6,12 @@ from django.db.models import Sum, Avg, Count
 from django.utils import timezone
 from .models import StudyAnalytics
 from .serializers import StudyAnalyticsSerializer
-from apps.memory.models import BehaviorProfile, SubjectMemory, ChapterMemory
+from apps.memory.models import BehaviorProfile, SubjectMemory, ChapterMemory, MemorySummary
 from apps.scheduler.models import Attendance, StudyTask
 from apps.assessment.models import MockResult, MCQAttempt
 from apps.ai_engine.models import SuccessPrediction
+from apps.accountability.models import DailyCheckIn
+from apps.memory.summarizer import MemorySummarizer
 
 class AnalyticsViewSet(viewsets.ViewSet):
     permission_classes = [permissions.IsAuthenticated]
@@ -120,3 +122,129 @@ class AnalyticsViewSet(viewsets.ViewSet):
             })
 
         return Response(data, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['get'], url_path='previous-day')
+    def previous_day(self, request):
+        """
+        Returns a detailed report of the student's activities from the previous day.
+        """
+        user = request.user
+        today = timezone.now().date()
+        yesterday = today - timedelta(days=1)
+        
+        # 1. Study Hours & Attendance for yesterday
+        attendance = Attendance.objects.filter(user=user, date=yesterday).first()
+        hours_studied = attendance.hours_studied if attendance else 0.0
+        is_present = attendance.is_present if attendance else False
+        check_in_time = attendance.check_in_time.strftime("%H:%M") if (attendance and attendance.check_in_time) else None
+        check_out_time = attendance.check_out_time.strftime("%H:%M") if (attendance and attendance.check_out_time) else None
+        attendance_notes = attendance.notes if attendance else ""
+
+        # 2. Study Tasks for yesterday
+        tasks = StudyTask.objects.filter(user=user, scheduled_date=yesterday)
+        tasks_data = []
+        tasks_completed_count = 0
+        tasks_total_count = tasks.count()
+        for t in tasks:
+            if t.is_completed:
+                tasks_completed_count += 1
+            tasks_data.append({
+                'id': str(t.id),
+                'title': t.title,
+                'task_type': t.get_task_type_display(),
+                'status': t.status,
+                'priority': t.get_priority_display(),
+                'is_completed': t.is_completed,
+                'duration_minutes': t.duration_minutes,
+                'actual_duration': t.actual_duration or 0,
+                'completed_at': t.completed_at.isoformat() if t.completed_at else None,
+                'subject': t.subject.name if t.subject else None,
+                'chapter': t.chapter.name if t.chapter else None,
+            })
+
+        # 3. MCQ Attempts for yesterday
+        mcqs = MCQAttempt.objects.filter(user=user, created_at__date=yesterday)
+        mcq_total = mcqs.count()
+        mcq_correct = mcqs.filter(is_correct=True).count()
+        mcq_accuracy = round((mcq_correct / mcq_total) * 100, 1) if mcq_total > 0 else 0.0
+        
+        mcqs_data = []
+        for m in mcqs[:15]: # return last 15 attempts for detail
+            mcqs_data.append({
+                'id': str(m.id),
+                'question_text': m.question_text[:120] + '...' if len(m.question_text) > 120 else m.question_text,
+                'is_correct': m.is_correct,
+                'selected_answer': m.selected_answer,
+                'correct_answer': m.correct_answer,
+                'time_taken_seconds': m.time_taken_seconds,
+                'subject': m.subject.name if m.subject else None,
+                'chapter': m.chapter.name if m.chapter else None,
+                'topic': m.topic.name if m.topic else None,
+            })
+
+        # 4. Mock Test Results for yesterday
+        mocks = MockResult.objects.filter(user=user, completed_at__date=yesterday)
+        mocks_data = []
+        for m in mocks:
+            mocks_data.append({
+                'id': str(m.id),
+                'test_title': m.test.title,
+                'test_type': m.test.get_test_type_display(),
+                'score': m.score,
+                'total_marks': m.total_marks,
+                'accuracy_percentage': m.accuracy_percentage,
+                'time_taken_minutes': m.time_taken_minutes,
+                'completed_at': m.completed_at.isoformat(),
+                'ai_feedback': m.ai_feedback,
+            })
+
+        # 5. Daily Check-in for yesterday
+        checkin = DailyCheckIn.objects.filter(user=user, date=yesterday).first()
+        checkin_data = None
+        if checkin:
+            checkin_data = {
+                'did_study': checkin.did_study,
+                'hours_completed': checkin.hours_completed,
+                'mood': checkin.get_mood_display(),
+                'productivity_rating': checkin.productivity_rating,
+                'problems_faced': checkin.problems_faced,
+                'notes': checkin.notes,
+                'ai_feedback': checkin.ai_feedback,
+                'ai_suggestions': checkin.ai_suggestions,
+            }
+
+        # 6. Fetch/Generate Daily Memory Summary for yesterday
+        yesterday_summary = MemorySummary.objects.filter(user=user, period='daily', period_start=yesterday).first()
+        if not yesterday_summary:
+            # Only trigger summary generation if there was some study or check-in activity
+            has_activity = (hours_studied > 0.0 or tasks_completed_count > 0 or mcq_total > 0 or mocks.exists() or checkin is not None)
+            if has_activity:
+                # Generate summary dynamically using the summarizer
+                yesterday_summary = MemorySummarizer.generate_summary(user, 'daily', yesterday, yesterday)
+
+        summary_data = None
+        if yesterday_summary:
+            summary_data = {
+                'summary_text': yesterday_summary.summary_text,
+                'key_insights': yesterday_summary.key_insights,
+                'performance_data': yesterday_summary.performance_data
+            }
+
+        return Response({
+            'date': str(yesterday),
+            'hours_studied': round(hours_studied, 1),
+            'is_present': is_present,
+            'check_in_time': check_in_time,
+            'check_out_time': check_out_time,
+            'attendance_notes': attendance_notes,
+            'tasks_completed': tasks_completed_count,
+            'tasks_total': tasks_total_count,
+            'tasks': tasks_data,
+            'mcq_total': mcq_total,
+            'mcq_correct': mcq_correct,
+            'mcq_accuracy': mcq_accuracy,
+            'mcqs': mcqs_data,
+            'mock_results': mocks_data,
+            'check_in': checkin_data,
+            'ai_summary': summary_data
+        }, status=status.HTTP_200_OK)

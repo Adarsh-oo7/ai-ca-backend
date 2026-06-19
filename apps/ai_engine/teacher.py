@@ -97,10 +97,11 @@ class AITeacher:
             return "Error: Topic not found.", []
 
         # 1. Retrieve recent history for this session
-        history_logs = ConversationLog.objects.filter(
+        history_logs = list(ConversationLog.objects.filter(
             user=user,
             session_id=session_id
-        ).order_by('created_at')[:10]  # Get last 10 messages for context
+        ).order_by('-created_at')[:10])  # Get last 10 messages for context
+        history_logs.reverse()
 
         # 2. Fetch relevant study materials
         retriever = KnowledgeRetriever()

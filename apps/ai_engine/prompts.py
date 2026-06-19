@@ -75,10 +75,11 @@ class PromptBuilder:
         # Retrieve last 10 messages in the current session
         chat_history_str = ""
         if conversation_id:
-            history_logs = ConversationLog.objects.filter(
+            history_logs = list(ConversationLog.objects.filter(
                 user=user,
                 session_id=conversation_id
-            ).order_by('created_at')[:10]
+            ).order_by('-created_at')[:10])
+            history_logs.reverse()
             
             chat_history = []
             for log in history_logs:
