@@ -27,15 +27,22 @@ class PromptBuilder:
             lang_instruction = ""
             if profile:
                 pref_lang = profile.preferred_language
-                if pref_lang in ['ml', 'manglish']:
+                if pref_lang == 'ml':
                     lang_instruction = (
                         "\nLANGUAGE REQUIREMENT:\n"
-                        "The student's preferred language is Manglish (Malayalam written using the Latin/English alphabet script). "
-                        "You MUST write your response entirely in fluid, natural Manglish (e.g., 'Innu nammal padikkan pokunnath accounting enna topic-ne kurichaanu. "
+                        "The student's preferred language is Malayalam. You MUST write your response entirely in the Malayalam script (Malayalam language). "
+                        "When explaining technical accounting, law, economics, or mathematical terms, write the corresponding English terms "
+                        "in brackets or in Latin script (e.g., 'ആസ്തികൾ (Assets)' or 'ഡെബിറ്റ് (Debit)') to make sure it aligns with their CA Foundation "
+                        "English study materials. Ensure all conversational parts and explanations are in natural, grammatically correct Malayalam."
+                    )
+                elif pref_lang == 'manglish':
+                    lang_instruction = (
+                        "\nLANGUAGE REQUIREMENT:\n"
+                        "The student's preferred language is Manglish. You MUST write your response in Manglish, which is Malayalam "
+                        "written using the English/Latin alphabet script (e.g., 'Innu nammal padikkan pokunnath accounting enna topic-ne kurichaanu. "
                         "Athil asset ennal namukkulla swathu ennanu artham. Athu debit side-il aanu kanikkuka.'). "
-                        "DO NOT write in the Malayalam script/characters. Write ONLY in the Latin/English alphabet. "
-                        "Naturally blend standard English technical terms (such as Ledger, Provision, Balance Sheet, Assets, Liabilities, etc.) "
-                        "into the sentences. This ensures that standard English/Indian English TTS engines can speak the output text fluently and that it is easy for the student to read."
+                        "Blend Malayalam words with standard English technical terms (such as Ledger, Provision, Balance Sheet, etc.) "
+                        "very naturally. DO NOT write in the Malayalam script/characters. Write only in Latin/English script."
                     )
                 else:
                     lang_instruction = (
