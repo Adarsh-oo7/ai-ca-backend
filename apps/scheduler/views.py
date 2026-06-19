@@ -48,7 +48,8 @@ class StudyTaskViewSet(viewsets.ModelViewSet):
             user=request.user,
             subject_id=task.subject.id if task.subject else None,
             chapter_id=task.chapter.id if task.chapter else None,
-            duration_hours=actual_duration / 60.0
+            duration_hours=actual_duration / 60.0,
+            topic_id=task.topic.id if task.topic else None
         )
 
         # 2. Update daily schedule completed hours

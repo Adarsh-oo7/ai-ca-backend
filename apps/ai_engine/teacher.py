@@ -81,7 +81,8 @@ class AITeacher:
             user=user,
             subject_id=topic.chapter.subject.id,
             chapter_id=topic.chapter.id,
-            duration_hours=0.1 # initial start increment
+            duration_hours=0.1, # initial start increment
+            topic_id=topic.id
         )
 
         return ai_response, citations
@@ -168,7 +169,8 @@ class AITeacher:
             user=user,
             subject_id=topic.chapter.subject.id,
             chapter_id=topic.chapter.id,
-            duration_hours=0.2 # 12 mins per turn increment
+            duration_hours=0.2, # 12 mins per turn increment
+            topic_id=topic.id
         )
 
         return ai_response, citations

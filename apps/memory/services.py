@@ -19,15 +19,16 @@ class MemoryService:
         return pref, behavior
 
     @staticmethod
-    def record_study_session(user, subject_id, chapter_id, duration_hours):
+    def record_study_session(user, subject_id, chapter_id, duration_hours, topic_id=None):
         """Update study time in memory for subject and chapter."""
         # Update behavior profile
         behavior, _ = BehaviorProfile.objects.get_or_create(user=user)
         behavior.total_study_hours += duration_hours
         # Calculate daily average
-        profile = user.student_profile
-        days_since_start = (timezone.now() - profile.created_at).days or 1
-        behavior.average_daily_hours = behavior.total_study_hours / max(1, days_since_start)
+        profile = getattr(user, 'student_profile', None)
+        if profile:
+            days_since_start = (timezone.now() - profile.created_at).days or 1
+            behavior.average_daily_hours = behavior.total_study_hours / max(1, days_since_start)
         behavior.save()
 
         # Update subject memory
@@ -43,6 +44,23 @@ class MemoryService:
             chapter_mem.total_time_spent += duration_hours
             chapter_mem.last_studied = timezone.now()
             chapter_mem.save()
+
+        # Update concept memory if topic is specified
+        if topic_id:
+            topic = Topic.objects.get(id=topic_id)
+            concept_mem, created = ConceptMemory.objects.get_or_create(user=user, topic=topic)
+            if created or concept_mem.total_attempts == 0:
+                concept_mem.total_attempts = 1
+                concept_mem.correct_attempts = 1
+                concept_mem.accuracy = 80.0
+                concept_mem.retention_score = 80.0
+            concept_mem.last_reviewed = timezone.now()
+            concept_mem.save()
+
+            # Recalculate Chapter and Subject understanding averages
+            c_obj = Chapter.objects.get(id=chapter_id) if chapter_id else topic.chapter
+            s_obj = Subject.objects.get(id=subject_id) if subject_id else topic.chapter.subject
+            MemoryService._recalculate_chapter_subject_scores(user, c_obj, s_obj)
 
     @staticmethod
     def record_mcq_attempt(user, topic_id, is_correct, time_spent_sec=0):
