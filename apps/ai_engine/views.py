@@ -242,6 +242,7 @@ class AIChatViewSet(viewsets.ViewSet):
         """
         Securely returns the GEMINI_API_KEY to the authenticated client.
         """
+        from django.conf import settings
         api_key = settings.GEMINI_API_KEY
         if not api_key:
             return Response({'error': 'Gemini API key is not configured on the server'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
