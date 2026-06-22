@@ -107,7 +107,7 @@ class ChatSession(models.Model):
     session_type = models.CharField(max_length=20, choices=SESSION_TYPES, default='chat')
     is_active = models.BooleanField(default=True)
     message_count = models.IntegerField(default=0)
-    last_summary = models.TextField(blank=True, help_text='AI-compressed summary of this session for long-term memory')
+    last_summary = models.TextField(default='', blank=True, help_text='AI-compressed summary of this session for long-term memory')
     subject = models.ForeignKey('curriculum.Subject', on_delete=models.SET_NULL, null=True, blank=True)
     chapter = models.ForeignKey('curriculum.Chapter', on_delete=models.SET_NULL, null=True, blank=True)
     topic = models.ForeignKey('curriculum.Topic', on_delete=models.SET_NULL, null=True, blank=True)

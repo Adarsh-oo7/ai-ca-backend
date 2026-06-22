@@ -214,6 +214,39 @@ class AIChatViewSet(viewsets.ViewSet):
         except ChatSession.DoesNotExist:
             return Response({'error': 'Session not found'}, status=status.HTTP_404_NOT_FOUND)
 
+    @action(detail=False, methods=['post'])
+    def speak(self, request):
+        """
+        Accepts text and optional voice_name in request body,
+        generates TTS audio from Gemini, and returns it as an audio stream.
+        """
+        text = request.data.get('text', '')
+        if not text:
+            return Response({'error': 'text parameter is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        voice_name = request.data.get('voice_name', 'Charon')
+        
+        client = GeminiClient()
+        audio_bytes, mime_type = client.generate_audio(text, voice_name=voice_name)
+        
+        if not audio_bytes:
+            return Response({'error': 'Failed to generate audio output'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        from django.http import HttpResponse
+        response = HttpResponse(audio_bytes, content_type=mime_type)
+        response['Content-Disposition'] = 'attachment; filename="speech.wav"'
+        return response
+
+    @action(detail=False, methods=['get'])
+    def get_api_key(self, request):
+        """
+        Securely returns the GEMINI_API_KEY to the authenticated client.
+        """
+        api_key = settings.GEMINI_API_KEY
+        if not api_key:
+            return Response({'error': 'Gemini API key is not configured on the server'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response({'api_key': api_key}, status=status.HTTP_200_OK)
+
 
 class AITeachingViewSet(viewsets.ViewSet):
     """

@@ -146,3 +146,62 @@ class GeminiClient:
                     continue
                 logger.error(f"Unexpected error in Gemini generate_json: {e}")
                 return None
+
+    def generate_audio(self, text, voice_name="Charon"):
+        """
+        Generate audio output (speech) from Gemini API using the specified voice.
+        Returns a tuple of (audio_bytes, mime_type).
+        """
+        if not self.api_key:
+            logger.error("Gemini API key is missing for audio generation.")
+            return None, None
+
+        config = types.GenerateContentConfig(
+            response_modalities=["AUDIO"],
+            speech_config=types.SpeechConfig(
+                voice_config=types.VoiceConfig(
+                    prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                        voice_name=voice_name
+                    )
+                )
+            )
+        )
+
+        max_retries = 3
+        delay = 1.0
+
+        for attempt in range(max_retries):
+            try:
+                response = self.client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=text,
+                    config=config
+                )
+                
+                for part in response.candidates[0].content.parts:
+                    if part.inline_data:
+                        data = part.inline_data.data
+                        mime_type = part.inline_data.mime_type or "audio/wav"
+                        if isinstance(data, str):
+                            import base64
+                            data = base64.b64decode(data)
+                        return data, mime_type
+                
+                logger.error("No audio content generated in Gemini response.")
+                return None, None
+            except APIError as e:
+                if e.code == 503 and attempt < max_retries - 1:
+                    logger.warning(f"Gemini API 503 on audio attempt {attempt+1}. Retrying in {delay}s...")
+                    time.sleep(delay)
+                    delay *= 2
+                    continue
+                logger.error(f"Gemini API Error in generate_audio: {e}")
+                return None, None
+            except Exception as e:
+                if "503" in str(e) and attempt < max_retries - 1:
+                    logger.warning(f"Gemini 503 Exception on audio attempt {attempt+1}. Retrying in {delay}s...")
+                    time.sleep(delay)
+                    delay *= 2
+                    continue
+                logger.error(f"Unexpected error in Gemini generate_audio: {e}")
+                return None, None

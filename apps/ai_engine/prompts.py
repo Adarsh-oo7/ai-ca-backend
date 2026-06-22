@@ -94,7 +94,9 @@ class PromptBuilder:
             from .models import ChatSession
             past_sessions = ChatSession.objects.filter(
                 user=user,
-                last_summary__gt=''  # Only sessions with summaries
+                last_summary__isnull=False,
+            ).exclude(
+                last_summary=''
             ).exclude(
                 id=conversation_id  # Exclude current session
             ).order_by('-updated_at')[:3]
