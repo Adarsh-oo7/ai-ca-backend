@@ -33,6 +33,11 @@ app.conf.beat_schedule = {
         'task': 'apps.notifications.tasks.send_study_reminders',
         'schedule': crontab(minute='*/30'),  # Check every 30 min
     },
+    # Check for missed study sessions daily at 9:30 PM IST
+    'daily-missed-study-reminder': {
+        'task': 'apps.notifications.tasks.send_missed_study_reminders',
+        'schedule': crontab(hour=21, minute=30),
+    },
     # Clean old activity logs monthly
     'monthly-cleanup': {
         'task': 'apps.accounts.tasks.cleanup_old_logs',
