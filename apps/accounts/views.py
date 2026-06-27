@@ -59,7 +59,10 @@ class SendOTPView(APIView):
                 recipient_list=[email],
                 fail_silently=False
             )
-            return Response({'detail': f'OTP sent successfully to {email}.'})
+            res_data = {'detail': f'OTP sent successfully to {email}.'}
+            if settings.DEBUG:
+                res_data['otp_fallback'] = otp
+            return Response(res_data)
         except Exception as e:
             # Fallback for dev print
             print(f"Failed to send email to {email}: {e}. OTP generated: {otp}")
