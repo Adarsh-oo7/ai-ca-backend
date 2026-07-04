@@ -173,7 +173,7 @@ class GeminiClient:
         for attempt in range(max_retries):
             try:
                 response = self.client.models.generate_content(
-                    model="gemini-2.5-flash",
+                    model="gemini-2.5-flash-preview-tts",
                     contents=text,
                     config=config
                 )
