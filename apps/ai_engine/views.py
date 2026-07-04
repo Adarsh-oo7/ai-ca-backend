@@ -240,13 +240,18 @@ class AIChatViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['get'])
     def get_api_key(self, request):
         """
-        Securely returns the GEMINI_API_KEY to the authenticated client.
+        Securely returns the GEMINI_API_KEY and the customized system instructions.
         """
         from django.conf import settings
         api_key = settings.GEMINI_API_KEY
         if not api_key:
             return Response({'error': 'Gemini API key is not configured on the server'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        return Response({'api_key': api_key}, status=status.HTTP_200_OK)
+        
+        system_instruction = PromptBuilder.get_system_instruction(category='chat', user=request.user)
+        return Response({
+            'api_key': api_key,
+            'system_instruction': system_instruction
+        }, status=status.HTTP_200_OK)
 
 
 class AITeachingViewSet(viewsets.ViewSet):
