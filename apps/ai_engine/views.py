@@ -285,11 +285,24 @@ class AIChatViewSet(viewsets.ViewSet):
 
         # Language rule
         if profile and profile.preferred_language == 'ml':
-            lang_rule = "Speak in Malayalam. Use English only for technical terms in brackets."
+            lang_rule = (
+                "CRITICAL LANGUAGE RULE: You MUST speak exclusively in Malayalam (മലയാളം). "
+                "Do NOT speak in English sentences. NEVER speak in Hindi, Tamil, or any other language under any circumstances. "
+                "Only use English for specific CA Foundation technical terms (like Ledger, Assets, Balance Sheet, Debit, Credit) "
+                "within Malayalam sentences. Speak natural, grammatically correct Malayalam."
+            )
         elif profile and profile.preferred_language == 'manglish':
-            lang_rule = "Speak in Manglish (Malayalam words written in English/Latin script). Mix natural Malayalam phrases with English CA terms."
+            lang_rule = (
+                "CRITICAL LANGUAGE RULE: You MUST speak exclusively in Manglish (Malayalam words written in English/Latin script). "
+                "Do NOT write or speak in plain English sentences, and NEVER speak in Hindi, Tamil, or any other language. "
+                "Combine Malayalam conversational phrases and English CA terms naturally. "
+                "Example: 'Nammal innu study cheyyan pokunnathu Accounting-ine kurichaanu. Athil Asset ennal nammude swathu aanu.'"
+            )
         else:
-            lang_rule = "Speak in clear, friendly English."
+            lang_rule = (
+                "CRITICAL LANGUAGE RULE: You MUST speak exclusively in clear, friendly English. "
+                "Do NOT use Hindi, Malayalam, or any other language under any circumstances."
+            )
 
         # ── 2. Build lean voice system instruction ────────────────────────────
         system_instruction = f"""You are Devika, a personal CA Foundation AI teacher having a live voice call with your student {student_name}.
