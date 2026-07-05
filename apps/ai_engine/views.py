@@ -368,9 +368,42 @@ VOICE RULES (CRITICAL):
                 + f"\n\nPick up naturally from where you left off. Do NOT re-introduce yourself to {student_name}."
             )
 
+        # ── 4. Build context-aware opening greeting ───────────────────────────
+        # Determines what Devika says FIRST when the call connects.
+        has_memory = bool(memory_parts)
+        lang_code = 'ml' if (profile and profile.preferred_language == 'ml') else \
+                    'manglish' if (profile and profile.preferred_language == 'manglish') else 'en'
+
+        if has_memory and session_id:
+            # Continuing from a session — pick up naturally
+            if lang_code == 'ml':
+                initial_message = f"ഹേ {student_name}! ഞാൻ Devika. നമ്മൾ ഇടയ്ക്ക് ഉണ്ടായിരുന്ന ചർച്ചയിൽ നിന്ന് തുടരാം. ഏത് topic ആണ് ഇന്ന് tackle ചെയ്യേണ്ടത്?"
+            elif lang_code == 'manglish':
+                initial_message = f"Hey {student_name}! Njaan Devika. Nammude session continue cheyyam. Innu enthu topic cover cheyyanam?"
+            else:
+                initial_message = f"Hey {student_name}! Good to connect again. Let us pick up where we left off. What topic do you want to work on today?"
+        elif streak > 3:
+            # Student is on a streak — acknowledge it
+            if lang_code == 'ml':
+                initial_message = f"ഹേ {student_name}! {streak} ദിവസം streak! അടിപൊളി! ഇന്ന് CA prep-ൽ എന്ത് tackle ചെയ്യണം?"
+            elif lang_code == 'manglish':
+                initial_message = f"Hey {student_name}! {streak} day streak — super! Innu CA-yil enthu padikkanam?"
+            else:
+                initial_message = f"Hey {student_name}! {streak} day study streak — that is impressive! What are we tackling in CA today?"
+        else:
+            # Fresh start
+            if lang_code == 'ml':
+                initial_message = f"ഹേ {student_name}! ഞാൻ Devika, നിന്റെ CA Foundation teacher. {days_until} ദിവസം ബാക്കി — ഇന്ന് ഏത് subject ആണ് ചെയ്യേണ്ടത്?"
+            elif lang_code == 'manglish':
+                initial_message = f"Hey {student_name}! Njaan Devika, nintte CA Foundation teacher. {days_until} days baaki — innu enthu subject cheyyanam?"
+            else:
+                initial_message = f"Hey {student_name}! I am Devika, your CA Foundation teacher. We have {days_until} days to your exam. What subject are we working on today?"
+
         return Response({
             'api_key': token,
-            'system_instruction': system_instruction
+            'system_instruction': system_instruction,
+            'initial_message': initial_message,
+            'lang_code': lang_code,
         }, status=status.HTTP_200_OK)
 
 
