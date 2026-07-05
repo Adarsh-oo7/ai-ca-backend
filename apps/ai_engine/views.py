@@ -241,13 +241,75 @@ class AIChatViewSet(viewsets.ViewSet):
     def get_api_key(self, request):
         """
         Securely returns an ephemeral Gemini token and the customized system instructions.
+        Optionally accepts ?session_id=<uuid> to inject recent chat history and long-term
+        memory summaries into the system instruction for the Live Voice Agent.
         """
         client = GeminiClient()
         token = client.generate_ephemeral_token()
         if not token:
             return Response({'error': 'Failed to generate ephemeral session token'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
+
+        # Base system instruction with student profile memory
         system_instruction = PromptBuilder.get_system_instruction(category='chat', user=request.user)
+
+        # --- Inject session memory for voice continuity ---
+        session_id = request.query_params.get('session_id', None)
+        memory_blocks = []
+
+        # 1. Long-term memory: summaries from past sessions (up to 3)
+        try:
+            past_sessions = ChatSession.objects.filter(
+                user=request.user,
+                last_summary__isnull=False,
+            ).exclude(
+                last_summary=''
+            ).order_by('-updated_at')[:3]
+
+            if session_id:
+                past_sessions = past_sessions.exclude(id=session_id)
+
+            if past_sessions.exists():
+                parts = []
+                for s in past_sessions:
+                    date_str = s.updated_at.strftime('%B %d, %Y') if s.updated_at else 'Unknown date'
+                    parts.append(f"[{s.title} ({s.get_session_type_display()}) — {date_str}]\n{s.last_summary}")
+                memory_blocks.append(
+                    "LONG-TERM MEMORY (Past Sessions):\n" + "\n\n".join(parts)
+                )
+        except Exception as e:
+            logger.warning(f"Voice: failed to load long-term memory: {e}")
+
+        # 2. Current session history: last 8 exchanges
+        if session_id:
+            try:
+                recent_logs = list(ConversationLog.objects.filter(
+                    user=request.user,
+                    session_id=session_id,
+                ).order_by('-created_at')[:8])
+                recent_logs.reverse()
+
+                if recent_logs:
+                    lines = []
+                    for log in recent_logs:
+                        lines.append(f"Student: {log.user_message}")
+                        lines.append(f"Devika: {log.ai_response[:600]}")
+                    memory_blocks.append(
+                        "RECENT CONVERSATION (This Session):\n" + "\n".join(lines)
+                    )
+            except Exception as e:
+                logger.warning(f"Voice: failed to load session history: {e}")
+
+        # Append memory to system instruction
+        if memory_blocks:
+            system_instruction = (
+                system_instruction
+                + "\n\n--- VOICE SESSION MEMORY ---\n"
+                + "\n\n".join(memory_blocks)
+                + "\n\nUSE THE ABOVE MEMORY: Continue naturally from the conversation above. "
+                "Reference prior topics, the student's name, and what was discussed earlier. "
+                "Do NOT re-introduce yourself as if meeting for the first time if there is prior history."
+            )
+
         return Response({
             'api_key': token,
             'system_instruction': system_instruction
