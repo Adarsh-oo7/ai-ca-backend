@@ -18,6 +18,61 @@ class GeminiClient:
         self.model = settings.GEMINI_MODEL
         self.embedding_model = settings.GEMINI_EMBEDDING_MODEL
         self.dimensions = settings.GEMINI_EMBEDDING_DIMENSIONS
+        self.frequency_penalty = getattr(settings, 'GEMINI_FREQUENCY_PENALTY', 0.3)
+        self.presence_penalty = getattr(settings, 'GEMINI_PRESENCE_PENALTY', 0.0)
+
+    def _clean_repetition(self, text: str) -> str:
+        """
+        Cleans up common Gemini repetition issues:
+        1. Consecutive sentence-level repetition (e.g. "Sentence. Sentence.")
+        2. Consecutive phrase-level repetition (e.g. "and we are all connected, and we are all connected")
+        """
+        if not text:
+            return text
+
+        import re
+
+        # 1. Clean phrase loops (e.g. "and we are all connected, and we are all connected")
+        # Matches a sequence of 8-150 characters, followed by a separator (spaces, commas, and/or "and"/"or"),
+        # followed by the same sequence, repeated 1 or more times.
+        pattern = re.compile(
+            r'(\b[^.!?\n]{8,150}\b)([\s,]+(?:and|or)?[\s,]*)\1(?:\2\1)*', 
+            re.IGNORECASE
+        )
+        
+        for _ in range(3):
+            new_text, count = pattern.subn(r'\1', text)
+            if count == 0:
+                break
+            text = new_text
+
+        # 2. Clean sentence-level consecutive duplicates (e.g. "Sentence. Sentence.")
+        sentence_ends = re.compile(r'([.!?\n]+)')
+        tokens = sentence_ends.split(text)
+        
+        cleaned_parts = []
+        last_sentence = None
+        
+        i = 0
+        while i < len(tokens):
+            sentence = tokens[i]
+            delim = tokens[i+1] if i + 1 < len(tokens) else ""
+            i += 2
+            
+            trimmed = sentence.strip()
+            if not trimmed:
+                cleaned_parts.append(sentence + delim)
+                continue
+                
+            if last_sentence and trimmed.lower() == last_sentence.lower():
+                if '\n' in delim:
+                    cleaned_parts.append('\n')
+                continue
+                
+            cleaned_parts.append(sentence + delim)
+            last_sentence = trimmed
+            
+        return "".join(cleaned_parts)
 
     def generate_text(self, prompt, system_instruction=None, temperature=None, max_output_tokens=None):
         """
@@ -33,7 +88,9 @@ class GeminiClient:
         config = types.GenerateContentConfig(
             temperature=temp,
             max_output_tokens=max_tokens,
-            system_instruction=system_instruction
+            system_instruction=system_instruction,
+            frequency_penalty=self.frequency_penalty,
+            presence_penalty=self.presence_penalty
         )
 
         max_retries = 3
@@ -46,7 +103,7 @@ class GeminiClient:
                     contents=prompt,
                     config=config
                 )
-                return response.text
+                return self._clean_repetition(response.text)
             except APIError as e:
                 # 503 indicates service unavailable/overloaded
                 if e.code == 503 and attempt < max_retries - 1:
@@ -178,6 +235,10 @@ class GeminiClient:
                     config=config
                 )
                 
+                if not response.candidates or not response.candidates[0].content or not response.candidates[0].content.parts:
+                    logger.warning(f"No valid candidates or parts generated in attempt {attempt+1}")
+                    continue
+                
                 for part in response.candidates[0].content.parts:
                     if part.inline_data:
                         data = part.inline_data.data
@@ -205,3 +266,27 @@ class GeminiClient:
                     continue
                 logger.error(f"Unexpected error in Gemini generate_audio: {e}")
                 return None, None
+
+    def generate_ephemeral_token(self):
+        """
+        Generate a short-lived (ephemeral) token for client-side Gemini Live WebSocket connection.
+        """
+        if not self.api_key:
+            logger.error("Gemini API key is missing for ephemeral token generation.")
+            return None
+
+        try:
+            import datetime
+            client_alpha = genai.Client(api_key=self.api_key, http_options={'api_version': 'v1alpha'})
+            
+            # Create an ephemeral token valid for 30 minutes, restricted to 1 session
+            token = client_alpha.auth_tokens.create(
+                config={
+                    'expire_time': (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=30)).isoformat(),
+                    'uses': 1
+                }
+            )
+            return token.name
+        except Exception as e:
+            logger.error(f"Error generating ephemeral token: {e}")
+            return None

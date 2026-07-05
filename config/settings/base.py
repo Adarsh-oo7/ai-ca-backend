@@ -284,6 +284,8 @@ GEMINI_EMBEDDING_MODEL = config('GEMINI_EMBEDDING_MODEL', default='text-embeddin
 GEMINI_EMBEDDING_DIMENSIONS = config('GEMINI_EMBEDDING_DIMENSIONS', default=768, cast=int)
 GEMINI_MAX_TOKENS = config('GEMINI_MAX_TOKENS', default=8192, cast=int)
 GEMINI_TEMPERATURE = config('GEMINI_TEMPERATURE', default=0.7, cast=float)
+GEMINI_FREQUENCY_PENALTY = config('GEMINI_FREQUENCY_PENALTY', default=0.3, cast=float)
+GEMINI_PRESENCE_PENALTY = config('GEMINI_PRESENCE_PENALTY', default=0.0, cast=float)
 
 # Google Calendar Integration
 GOOGLE_CALENDAR_CLIENT_ID = config('GOOGLE_CALENDAR_CLIENT_ID', default='')

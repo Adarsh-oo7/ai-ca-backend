@@ -240,16 +240,16 @@ class AIChatViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['get'])
     def get_api_key(self, request):
         """
-        Securely returns the GEMINI_API_KEY and the customized system instructions.
+        Securely returns an ephemeral Gemini token and the customized system instructions.
         """
-        from django.conf import settings
-        api_key = settings.GEMINI_API_KEY
-        if not api_key:
-            return Response({'error': 'Gemini API key is not configured on the server'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        client = GeminiClient()
+        token = client.generate_ephemeral_token()
+        if not token:
+            return Response({'error': 'Failed to generate ephemeral session token'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
         system_instruction = PromptBuilder.get_system_instruction(category='chat', user=request.user)
         return Response({
-            'api_key': api_key,
+            'api_key': token,
             'system_instruction': system_instruction
         }, status=status.HTTP_200_OK)
 
