@@ -204,7 +204,7 @@ class GeminiClient:
                 logger.error(f"Unexpected error in Gemini generate_json: {e}")
                 return None
 
-    def generate_audio(self, text, voice_name="Charon"):
+    def generate_audio(self, text, voice_name="Aoede"):
         """
         Generate audio output (speech) from Gemini API using the specified voice.
         Returns a tuple of (audio_bytes, mime_type).

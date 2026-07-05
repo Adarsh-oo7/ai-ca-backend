@@ -224,7 +224,7 @@ class AIChatViewSet(viewsets.ViewSet):
         if not text:
             return Response({'error': 'text parameter is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-        voice_name = request.data.get('voice_name', 'Charon')
+        voice_name = request.data.get('voice_name', 'Aoede')
         
         client = GeminiClient()
         audio_bytes, mime_type = client.generate_audio(text, voice_name=voice_name)
