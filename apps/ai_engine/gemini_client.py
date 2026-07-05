@@ -279,13 +279,13 @@ class GeminiClient:
             import datetime
             client_alpha = genai.Client(api_key=self.api_key, http_options={'api_version': 'v1alpha'})
             
-            # Create an ephemeral token valid for 30 minutes, restricted to 1 session and constrained to gemini-2.0-flash-exp
+            # Create an ephemeral token valid for 30 minutes, restricted to 1 session and constrained to gemini-2.5-flash-native-audio-latest
             token = client_alpha.auth_tokens.create(
                 config={
                     'expire_time': (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=30)).isoformat(),
                     'uses': 1,
                     'live_connect_constraints': {
-                        'model': 'models/gemini-2.0-flash-exp'
+                        'model': 'models/gemini-2.5-flash-native-audio-latest'
                     }
                 }
             )
