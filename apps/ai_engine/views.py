@@ -240,112 +240,132 @@ class AIChatViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['get'])
     def get_api_key(self, request):
         """
-        Securely returns an ephemeral Gemini token and the customized system instructions.
-        Optionally accepts ?session_id=<uuid> to inject recent chat history and long-term
-        memory summaries into the system instruction for the Live Voice Agent.
+        Returns an ephemeral Gemini token + a purpose-built VOICE system instruction.
+        Accepts ?session_id=<uuid> to inject recent session memory.
+        Uses a concise, voice-optimised prompt (NOT the full text-chat prompt)
+        so the model actually follows it instead of reverting to generic behaviour.
         """
         client = GeminiClient()
         token = client.generate_ephemeral_token()
         if not token:
             return Response({'error': 'Failed to generate ephemeral session token'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        # Base system instruction with student profile memory
-        system_instruction = PromptBuilder.get_system_instruction(category='chat', user=request.user)
+        user = request.user
 
-        # --- Strict voice-mode scope: CA Foundation study only ---
-        voice_scope = (
-            "\n\n--- LIVE VOICE MODE PERSONA & RULES ---\n"
-            "You are Devika, a friendly CA Foundation study buddy speaking in a live voice call.\n\n"
+        # ── 1. Pull live student data ─────────────────────────────────────────
+        profile = getattr(user, 'student_profile', None)
+        student_name = profile.preferred_name if profile else (user.first_name or 'there')
+        exam_display = profile.get_exam_attempt_display() if profile else 'CA Foundation'
+        days_until   = profile.days_until_exam if profile else 'Unknown'
+        daily_hours  = profile.daily_study_hours if profile else 'Unknown'
+        lang_pref    = profile.get_preferred_language_display() if profile else 'English'
 
-            "PERSONALITY:\n"
-            "- Be warm, fun, and encouraging — like a smart older friend who happens to know CA inside out.\n"
-            "- Never sound robotic or formal. Talk naturally like a real person.\n"
-            "- Use casual, friendly language. It is okay to say 'okay!', 'totally!', 'good job!', 'nice one!'.\n"
-            "- If the student sounds tired or confused, acknowledge it first before teaching.\n"
-            "- Celebrate every correct answer, even small ones. Make the student feel good.\n\n"
+        # Subject mastery snapshot
+        subject_lines = []
+        try:
+            from apps.memory.models import SubjectMemory
+            for sm in SubjectMemory.objects.filter(user=user).select_related('subject'):
+                subject_lines.append(
+                    f"{sm.subject.name}: strength {sm.strength_score:.0f}%, confidence {sm.confidence_score:.0f}%"
+                )
+        except Exception:
+            pass
+        mastery_text = "; ".join(subject_lines) if subject_lines else "No data yet"
 
-            "ADAPTIVE TEACHING — READ THE STUDENT:\n"
-            "- If the student speaks simply or slowly: use very simple words, short sentences, easy examples.\n"
-            "- If the student sounds confused: slow down, use a story or real-life example, then re-explain.\n"
-            "- If the student sounds confident and quick: match their energy, go faster, ask harder questions.\n"
-            "- If the student makes a mistake: never say 'wrong'. Say 'Almost! Let me show you another way...'.\n"
-            "- Always match the student's energy and language level. Never talk over their head.\n\n"
+        # Study behaviour
+        streak = 0
+        total_hours = 0.0
+        try:
+            from apps.memory.models import BehaviorProfile
+            beh, _ = BehaviorProfile.objects.get_or_create(user=user)
+            streak      = beh.study_streak
+            total_hours = beh.total_study_hours
+        except Exception:
+            pass
 
-            "HOW TO TEACH:\n"
-            "- Explain like you are talking to a friend, not reading from a textbook.\n"
-            "- Use real-life examples (food, cricket, shopping, movies, family) to make concepts stick.\n"
-            "- One idea at a time. Never dump too much at once.\n"
-            "- After explaining, always ask one simple check: 'Does that make sense?' or 'Can you give me an example?'.\n\n"
+        # Language rule
+        if profile and profile.preferred_language == 'ml':
+            lang_rule = "Speak in Malayalam. Use English only for technical terms in brackets."
+        elif profile and profile.preferred_language == 'manglish':
+            lang_rule = "Speak in Manglish (Malayalam words written in English/Latin script). Mix natural Malayalam phrases with English CA terms."
+        else:
+            lang_rule = "Speak in clear, friendly English."
 
-            "SCOPE — CA FOUNDATION ONLY:\n"
-            "- Only teach: Accounting, Business Laws, Quantitative Aptitude, Business Economics.\n"
-            "- If the student goes off-topic say: 'Ha, that is interesting! But let us focus on your CA prep right now — "
-            "tell me what topic you want to tackle!'\n\n"
+        # ── 2. Build lean voice system instruction ────────────────────────────
+        system_instruction = f"""You are Devika, a personal CA Foundation AI teacher having a live voice call with your student {student_name}.
 
-            "VOICE STYLE (VERY IMPORTANT):\n"
-            "- Short sentences only. This is a voice call — long paragraphs are impossible to listen to.\n"
-            "- No markdown, no bullet points, no numbered lists. Just natural spoken sentences.\n"
-            "- Pause naturally between ideas. Do not rush.\n"
-            "- Always end your turn with a question or a gentle prompt to keep the student engaged."
-        )
-        system_instruction = system_instruction + voice_scope
+STUDENT STATUS RIGHT NOW:
+- Name: {student_name}
+- Target: {exam_display} | {days_until} days to exam
+- Daily study goal: {daily_hours} hours | Current streak: {streak} days | Total hours logged: {total_hours:.0f}h
+- Subject mastery: {mastery_text}
+- Language preference: {lang_pref}
 
-        # --- Inject session memory for voice continuity ---
+YOUR IDENTITY & MISSION:
+You are NOT a generic AI. You are Devika — {student_name}'s personal CA teacher who knows their exact study status, weak areas, and progress. Your only job on this call is to help {student_name} crack CA Foundation.
+
+HOW TO TEACH:
+- Talk like a warm, encouraging friend who happens to be a CA expert.
+- Explain simply. One idea at a time. Never dump everything at once.
+- Use real-life examples: cricket, food, shopping, movies, family situations.
+- If they sound confused, slow down and try a story or analogy.
+- If they sound confident, speed up and ask harder questions.
+- Never say "wrong" — say "Almost! Let me show you another way."
+- After each explanation, check understanding: "Does that make sense?" or "Can you give me an example?"
+- Reference their actual weak areas and exam countdown to keep them motivated.
+
+SCOPE — CA FOUNDATION ONLY:
+Only help with: Accounting, Business Laws, Quantitative Aptitude, Business Economics.
+If they go off-topic: "That is interesting! But we have {days_until} days to your exam — let us focus. Which topic shall we tackle?"
+
+VOICE RULES (CRITICAL):
+- Short spoken sentences only. No markdown, no bullet points, no numbered lists.
+- Natural conversational rhythm. Pause between ideas.
+- {lang_rule}
+- Always end your turn with a question or prompt to keep them engaged."""
+
+        # ── 3. Inject session memory ──────────────────────────────────────────
         session_id = request.query_params.get('session_id', None)
-        memory_blocks = []
+        memory_parts = []
 
-        # 1. Long-term memory: summaries from past sessions (up to 3)
+        # Long-term: past session summaries (up to 2, kept short)
         try:
             past_sessions = ChatSession.objects.filter(
-                user=request.user,
+                user=user,
                 last_summary__isnull=False,
-            ).exclude(
-                last_summary=''
-            ).order_by('-updated_at')[:3]
-
+            ).exclude(last_summary='').order_by('-updated_at')
             if session_id:
                 past_sessions = past_sessions.exclude(id=session_id)
-
+            past_sessions = past_sessions[:2]
             if past_sessions.exists():
                 parts = []
                 for s in past_sessions:
-                    date_str = s.updated_at.strftime('%B %d, %Y') if s.updated_at else 'Unknown date'
-                    parts.append(f"[{s.title} ({s.get_session_type_display()}) — {date_str}]\n{s.last_summary}")
-                memory_blocks.append(
-                    "LONG-TERM MEMORY (Past Sessions):\n" + "\n\n".join(parts)
-                )
+                    parts.append(f"[{s.title}]: {s.last_summary[:300]}")
+                memory_parts.append("PAST SESSIONS:\n" + "\n".join(parts))
         except Exception as e:
-            logger.warning(f"Voice: failed to load long-term memory: {e}")
+            logger.warning(f"Voice memory (past sessions): {e}")
 
-        # 2. Current session history: last 8 exchanges
+        # Recent: last 5 exchanges from current session
         if session_id:
             try:
                 recent_logs = list(ConversationLog.objects.filter(
-                    user=request.user,
-                    session_id=session_id,
-                ).order_by('-created_at')[:8])
+                    user=user, session_id=session_id,
+                ).order_by('-created_at')[:5])
                 recent_logs.reverse()
-
                 if recent_logs:
                     lines = []
                     for log in recent_logs:
                         lines.append(f"Student: {log.user_message}")
-                        lines.append(f"Devika: {log.ai_response[:600]}")
-                    memory_blocks.append(
-                        "RECENT CONVERSATION (This Session):\n" + "\n".join(lines)
-                    )
+                        lines.append(f"Devika: {log.ai_response[:400]}")
+                    memory_parts.append("THIS SESSION SO FAR:\n" + "\n".join(lines))
             except Exception as e:
-                logger.warning(f"Voice: failed to load session history: {e}")
+                logger.warning(f"Voice memory (session history): {e}")
 
-        # Append memory to system instruction
-        if memory_blocks:
-            system_instruction = (
-                system_instruction
-                + "\n\n--- VOICE SESSION MEMORY ---\n"
-                + "\n\n".join(memory_blocks)
-                + "\n\nUSE THE ABOVE MEMORY: Continue naturally from the conversation above. "
-                "Reference prior topics, the student's name, and what was discussed. "
-                "Do NOT re-introduce yourself as if meeting for the first time if there is prior history."
+        if memory_parts:
+            system_instruction += (
+                "\n\nMEMORY — USE THIS TO CONTINUE NATURALLY:\n"
+                + "\n\n".join(memory_parts)
+                + f"\n\nPick up naturally from where you left off. Do NOT re-introduce yourself to {student_name}."
             )
 
         return Response({
