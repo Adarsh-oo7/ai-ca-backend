@@ -18,8 +18,7 @@ class GeminiClient:
         self.model = settings.GEMINI_MODEL
         self.embedding_model = settings.GEMINI_EMBEDDING_MODEL
         self.dimensions = settings.GEMINI_EMBEDDING_DIMENSIONS
-        self.frequency_penalty = getattr(settings, 'GEMINI_FREQUENCY_PENALTY', 0.3)
-        self.presence_penalty = getattr(settings, 'GEMINI_PRESENCE_PENALTY', 0.0)
+        # Note: frequency_penalty and presence_penalty are NOT supported by gemini-2.5-flash
 
     def _clean_repetition(self, text: str) -> str:
         """
@@ -89,8 +88,6 @@ class GeminiClient:
             temperature=temp,
             max_output_tokens=max_tokens,
             system_instruction=system_instruction,
-            frequency_penalty=self.frequency_penalty,
-            presence_penalty=self.presence_penalty
         )
 
         max_retries = 3
