@@ -23,7 +23,9 @@ if [ ! -f .env ]; then
 fi
 
 # 2. Export environment variables
-export $(grep -v '^#' .env | xargs)
+set -a
+source .env
+set +a
 
 # Required validations
 if [ -z "$GEMINI_API_KEY" ]; then

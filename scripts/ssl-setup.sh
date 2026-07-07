@@ -14,7 +14,9 @@ echo -e "${GREEN}==> Initializing Study Commander AI SSL Setup...${NC}"
 
 # Read DOMAIN_NAME from .env in parent folder
 if [ -f .env ]; then
-    export $(grep -v '^#' .env | xargs)
+    set -a
+    source .env
+    set +a
 else
     echo -e "${RED}[ERROR] .env file not found. Please create .env first.${NC}"
     exit 1
