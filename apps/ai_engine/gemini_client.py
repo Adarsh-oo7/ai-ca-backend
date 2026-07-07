@@ -263,6 +263,7 @@ class GeminiClient:
                     continue
                 logger.error(f"Unexpected error in Gemini generate_audio: {e}")
                 return None, None
+        return None, None
 
     def generate_ephemeral_token(self):
         """
