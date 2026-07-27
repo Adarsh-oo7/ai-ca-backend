@@ -108,7 +108,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 512M
     # Run both Celery worker and beat scheduler inside the same container, limiting concurrency to 1.
     command: celery -A config worker --beat --concurrency=1 --loglevel=info
 
