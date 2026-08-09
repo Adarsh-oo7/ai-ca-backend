@@ -287,7 +287,10 @@ class GeminiClient:
                     }
                 }
             )
-            return token.name
+            raw_name = token.name or ''
+            if raw_name.startswith('auth_tokens/'):
+                return raw_name.replace('auth_tokens/', '')
+            return raw_name
         except Exception as e:
             logger.error(f"Error generating ephemeral token: {e}")
-            return None
+            return self.api_key
