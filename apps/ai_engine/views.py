@@ -424,6 +424,65 @@ VOICE RULES (CRITICAL):
             'lang_code': lang_code,
         }, status=status.HTTP_200_OK)
 
+    @action(detail=False, methods=['post'])
+    def log_voice_turn(self, request):
+        """
+        Accepts voice conversation turns from Live Voice Call and logs them to
+        ConversationLog & ChatSession so session memory persists.
+        """
+        session_id = request.data.get('session_id', None)
+        turns = request.data.get('turns', [])
+
+        if not session_id or not turns:
+            return Response({'status': 'ignored'}, status=status.HTTP_200_OK)
+
+        session, _ = ChatSession.objects.get_or_create(
+            id=session_id,
+            defaults={
+                'user': request.user,
+                'title': 'Voice Mentor Call',
+                'session_type': 'voice',
+            }
+        )
+
+        student_msg = ""
+        mentor_msg = ""
+
+        for turn in turns:
+            sender = turn.get('sender')
+            text = turn.get('text', '').strip()
+            if not text:
+                continue
+            if sender == 'student':
+                if student_msg and mentor_msg:
+                    ConversationLog.objects.create(
+                        user=request.user,
+                        session_id=session_id,
+                        user_message=student_msg,
+                        ai_response=mentor_msg,
+                        interaction_type='voice'
+                    )
+                    session.message_count += 1
+                    student_msg = text
+                    mentor_msg = ""
+                else:
+                    student_msg += (" " + text) if student_msg else text
+            elif sender == 'mentor':
+                mentor_msg += (" " + text) if mentor_msg else text
+
+        if student_msg or mentor_msg:
+            ConversationLog.objects.create(
+                user=request.user,
+                session_id=session_id,
+                user_message=student_msg or "Voice Call",
+                ai_response=mentor_msg or "Voice Call Response",
+                interaction_type='voice'
+            )
+            session.message_count += 1
+            session.save(update_fields=['message_count', 'updated_at'])
+
+        return Response({'status': 'logged', 'message_count': session.message_count}, status=status.HTTP_200_OK)
+
 
 class AITeachingViewSet(viewsets.ViewSet):
     """
