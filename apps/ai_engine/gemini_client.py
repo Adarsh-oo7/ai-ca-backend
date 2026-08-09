@@ -281,7 +281,7 @@ class GeminiClient:
             token = client_alpha.auth_tokens.create(
                 config={
                     'expire_time': (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=30)).isoformat(),
-                    'uses': 1,
+                    'uses': 10,
                     'live_connect_constraints': {
                         'model': 'models/gemini-2.5-flash-native-audio-latest'
                     }
