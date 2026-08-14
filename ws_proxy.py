@@ -48,7 +48,7 @@ async def proxy_handler(client_ws: WebSocketServerProtocol):
     Opens a Gemini Live WebSocket session for each incoming client connection.
     Bidirectionally proxies all messages between client and Gemini.
     """
-    api_key = settings.GEMINI_API_KEY
+    api_key = os.environ.get('GEMINI_API_KEY') or getattr(settings, 'GEMINI_API_KEY', '')
     if not api_key:
         await client_ws.close(1011, "GEMINI_API_KEY not configured on server")
         return
