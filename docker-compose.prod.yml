@@ -78,6 +78,35 @@ services:
           memory: 512M
     command: gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 2 --timeout 120
 
+  ws_proxy:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: studycommander_ws_proxy_prod
+    environment:
+      - DEBUG=False
+      - SECRET_KEY=${SECRET_KEY}
+      - DB_NAME=${DB_NAME:-studycommander}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+      - DB_HOST=db
+      - DB_PORT=5432
+      - REDIS_URL=redis://redis:6379/0
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
+      - GEMINI_EMBEDDING_MODEL=${GEMINI_EMBEDDING_MODEL:-gemini-embedding-2}
+      - GEMINI_EMBEDDING_DIMENSIONS=${GEMINI_EMBEDDING_DIMENSIONS:-768}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-${DOMAIN_NAME},backend,localhost,127.0.0.1}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    command: python ws_proxy.py
+
   celery_worker:
     build:
       context: .
