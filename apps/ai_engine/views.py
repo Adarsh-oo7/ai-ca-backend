@@ -1,5 +1,6 @@
 import logging
 import uuid
+from django.conf import settings
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -240,15 +241,12 @@ class AIChatViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['get'])
     def get_api_key(self, request):
         """
-        Returns an ephemeral Gemini token + a purpose-built VOICE system instruction.
-        Accepts ?session_id=<uuid> to inject recent session memory.
-        Uses a concise, voice-optimised prompt (NOT the full text-chat prompt)
-        so the model actually follows it instead of reverting to generic behaviour.
+        Returns the Gemini API key + a purpose-built VOICE system instruction.
+        Uses direct API key with ?key= param (stable) instead of experimental auth_tokens.
         """
-        client = GeminiClient()
-        token = client.generate_ephemeral_token()
-        if not token:
-            return Response({'error': 'Failed to generate ephemeral session token'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        api_key = settings.GEMINI_API_KEY
+        if not api_key:
+            return Response({'error': 'Gemini API key not configured'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         user = request.user
 
@@ -437,7 +435,8 @@ VOICE TUTORING RULES (CRITICAL):
                 initial_message = f"Hey {student_name}! I am Devika, your CA Foundation teacher. We have {days_until} days to your exam. What subject are we working on today?"
 
         return Response({
-            'api_key': token,
+            'api_key': api_key,
+            'token_type': 'key',     # 'key' = use ?key= param in WS URL
             'system_instruction': system_instruction,
             'initial_message': initial_message,
             'lang_code': lang_code,
