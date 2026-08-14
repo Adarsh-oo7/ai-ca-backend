@@ -252,7 +252,7 @@ class AIChatViewSet(viewsets.ViewSet):
 
         user = request.user
 
-        # ── 1. Pull live student data ─────────────────────────────────────────
+        # ── 1. Pull live student data & 4-layer memory ────────────────────────
         profile = getattr(user, 'student_profile', None)
         student_name = profile.preferred_name if profile else (user.first_name or 'there')
         exam_display = profile.get_exam_attempt_display() if profile else 'CA Foundation'
@@ -260,28 +260,54 @@ class AIChatViewSet(viewsets.ViewSet):
         daily_hours  = profile.daily_study_hours if profile else 'Unknown'
         lang_pref    = profile.get_preferred_language_display() if profile else 'English'
 
-        # Subject mastery snapshot
-        subject_lines = []
+        # Learning Preferences
+        exp_style = 'simple'
+        pref_notes = ''
         try:
-            from apps.memory.models import SubjectMemory
-            for sm in SubjectMemory.objects.filter(user=user).select_related('subject'):
-                subject_lines.append(
-                    f"{sm.subject.name}: strength {sm.strength_score:.0f}%, confidence {sm.confidence_score:.0f}%"
-                )
+            from apps.memory.models import LearningPreference
+            lp, _ = LearningPreference.objects.get_or_create(user=user)
+            exp_style = lp.get_explanation_style_display()
+            pref_notes = lp.notes
         except Exception:
             pass
-        mastery_text = "; ".join(subject_lines) if subject_lines else "No data yet"
 
-        # Study behaviour
+        # Behavior Profile
         streak = 0
         total_hours = 0.0
+        discipline = 50.0
         try:
             from apps.memory.models import BehaviorProfile
             beh, _ = BehaviorProfile.objects.get_or_create(user=user)
             streak      = beh.study_streak
             total_hours = beh.total_study_hours
+            discipline  = beh.discipline_score
         except Exception:
             pass
+
+        # Subject & Chapter Memory (Weak areas & Forgetting Risks)
+        weak_subjects = []
+        strong_subjects = []
+        try:
+            from apps.memory.models import SubjectMemory
+            for sm in SubjectMemory.objects.filter(user=user).select_related('subject'):
+                if sm.strength_score < 50:
+                    weak_subjects.append(f"{sm.subject.name} ({sm.strength_score:.0f}% strength)")
+                else:
+                    strong_subjects.append(f"{sm.subject.name} ({sm.strength_score:.0f}% strength)")
+        except Exception:
+            pass
+        weak_text = ", ".join(weak_subjects) if weak_subjects else "None identified yet"
+        strong_text = ", ".join(strong_subjects) if strong_subjects else "None identified yet"
+
+        # Recent Mistakes
+        mistake_lines = []
+        try:
+            from apps.memory.models import MistakeMemory
+            for mm in MistakeMemory.objects.filter(user=user, is_resolved=False).order_by('-created_at')[:3]:
+                mistake_lines.append(f"- {mm.mistake_type}: {mm.question_text[:100]} (Student answered: {mm.student_answer[:50]})")
+        except Exception:
+            pass
+        mistakes_text = "\n".join(mistake_lines) if mistake_lines else "No open unresolved mistakes."
 
         # Language rule
         if profile and profile.preferred_language == 'ml':
@@ -304,29 +330,36 @@ class AIChatViewSet(viewsets.ViewSet):
                 "Do NOT use Hindi, Malayalam, or any other language under any circumstances."
             )
 
-        # ── 2. Build lean voice system instruction ────────────────────────────
-        system_instruction = f"""You are Devika, a personal CA Foundation AI tutor having a live, fast-response voice phone call with your student {student_name}.
+        # ── 2. Build Master CA Foundation Personal Tutor Prompt ───────────────
+        system_instruction = f"""You are Devika, the dedicated 1-on-1 CA Foundation AI Personal Mentor having a real-time live voice call with your student {student_name}.
 
-STUDENT PROGRESS & TARGET:
-- Student: {student_name} | Exam: {exam_display} ({days_until} days remaining)
-- Target Goal: {daily_hours} hrs/day | Streak: {streak} days | Total: {total_hours:.0f} hrs
-- Mastery Snapshot: {mastery_text}
+STUDENT PROFILE & LEARNING HISTORY:
+- Student Name: {student_name}
+- Target Exam: {exam_display} ({days_until} days remaining)
+- Study Habits: Daily Goal={daily_hours}h | Current Streak={streak} days | Total Logged={total_hours:.0f}h | Discipline Score={discipline:.0f}/100
+- Preferred Teaching Style: {exp_style} ({pref_notes or 'Prefers clear, practical examples'})
+- Strong Subjects: {strong_text}
+- Weakest Subjects to Focus On: {weak_text}
 
-YOUR TUTOR PERSONA & ROLE:
-You are {student_name}'s dedicated 1-on-1 CA Foundation personal tutor.
-Your goal is to actively guide, teach, and test {student_name} on the ICAI syllabus:
-- Paper 1: Accounting (Journal, Ledger, Trial Balance, Depreciation, Partnership, Bills of Exchange, Company Accounts)
+RECENT UNRESOLVED MISTAKES:
+{mistakes_text}
+
+YOUR TUTOR IDENTITY & MISSION:
+You are NOT a generic AI assistant. You are Devika — {student_name}'s personal CA Foundation tutor.
+You know {student_name}'s exact strengths, weaknesses, and study patterns.
+Your goal is to coach, teach, and test {student_name} on the ICAI syllabus:
+- Paper 1: Accounting (Journal, Ledger, Trial Balance, Depreciation, Bills of Exchange, Partnership, Company Accounts)
 - Paper 2: Business Laws (Indian Contract Act 1872, Sale of Goods Act 1930, Indian Partnership Act 1932, Companies Act 2013, LLP Act 2008)
-- Paper 3: Quantitative Aptitude (Business Mathematics, Logical Reasoning, Statistics)
+- Paper 3: Quantitative Aptitude (Business Math, Logical Reasoning, Statistics)
 - Paper 4: Business Economics
 
-TUTORING STYLE & VOICE RULES:
-1. INSTANT PHONE RESPONSES: Respond IMMEDIATELY in 1 or 2 short, crisp sentences (max 12-18 words).
-2. ACTIVE TEACHER: Don't just sit passively — guide the lesson! Ask them a direct ICAI concept question or topic preference.
-3. SIMPLE EXPLANATIONS: Explain ICAI concepts using relatable everyday examples (cricket, shopping, business, food).
-4. SOCRATIC COACHING: End every turn with a quick question to test their understanding.
-5. NO INNER THOUGHTS / META TEXT: Never output headings, inner thoughts, or markdown (e.g. no '**Heading**').
-6. {lang_rule}"""
+VOICE TUTORING RULES (CRITICAL):
+1. INSTANT PHONE RESPONSES: Respond IMMEDIATELY in 1 or 2 concise, natural sentences per turn (max 12-18 words).
+2. ACTIVE TEACHING & SOCRATIC COACHING: Actively guide the session! Help resolve their weak areas or ask a direct ICAI concept question.
+3. EXPLANATION STYLE: Use {exp_style} explanations with relatable real-world examples (cricket, shopping, business, food).
+4. NO INNER THOUGHTS / META TEXT: Never output headings, inner thoughts, or markdown (e.g. no '**Heading**').
+5. {lang_rule}
+6. Always end your turn with a brief question to hand the turn back to {student_name}."""
 
         # ── 3. Inject session memory ──────────────────────────────────────────
         session_id = request.query_params.get('session_id', None)
